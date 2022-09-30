@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+
+# ./$0 token local/path my_bucket [remote/path [application/octet-stream]]
+# ./$0 $(gc-token KEY_FILE https://www.googleapis.com/auth/devstorage.read_write ) ...
+
+set -e
+
+_die(){
+  echo "$1" > /dev/stderr
+  [ -z "$2" ] && exit $2
+  exit 1
+}
+
+hash curl
+
+token="$1"; object_location="$2"; bucket_name="$3"
+object_name="${4:-$2}"
+[ "${object_name::1}" == "/" ] && object_name="${object_name:1}"
+object_content_type="${5:-application/octet-stream}"
+
+[ -z "$token" ] || [ -z "$bucket_name" ] || [ ! -f "$object_location" ]\
+  && _die\
+    'Usage: '$0' TOKEN OBJECT_LOCATION BUCKET_NAME [OBJECT_NAME [OBJECT_CONTENT_TYPE]]'
+
+curl -X POST --data-binary "@$object_location" \
+  -H "Authorization: Bearer $token" \
+  -H "Content-Type: $object_content_type" \
+  "https://storage.googleapis.com/upload/storage/v1/b/$bucket_name/o?uploadType=media&name=$object_name"
+
+exit 0

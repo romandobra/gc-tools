@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+
+# ./$0 key_file scope [token_file [token_max_age]]
+set -e
+
+_die(){
+  echo "$1" > /dev/stderr
+  [ -z "$2" ] && exit $2
+  exit 1
+}
+
+parse_var(){ # ./$0 key_file json_key
+  [ ! -f "$1" ] && _die "parse_var(): KEY_FILE '$1' not found"
+  [ -z "$2" ] && _die 'parse_var(): jq PATTERN not provided'
+  local result=$( jq --raw-output ".$2" "$1" )
+  if [ "$result" == "null" ] || [ "$result" == "" ]
+  then _die "parse_var(): NO_RESULT for PATTERN '$2'"
+  else echo "$result"; fi
+}
+
+base64_encode(){
+  openssl enc -base64 -A | tr '+/' '-_' | tr -d '='
+}
+
+json(){
+  declare input=${1:-$(</dev/stdin)}
+  printf '%s' "${input}" | jq -c .
+}
+
+token_gen(){ # ./$0 client_email scope token_uri token_max_age "key"
+
+  header='{"typ": "JWT","alg": "RS256"}'
+
+  payload='{"iss":"'$1'","scope":"'$2'","aud":"'$3'"}'
+
+  payload=$(
+    echo "${payload}"\
+      | jq\
+        --arg time_str "$(date +%s)"\
+        '($time_str | tonumber) as $time_num | .iat=$time_num | .exp=($time_num + '$4')' )
+
+  header_base64=$(
+    echo "${header}"\
+      | json\
+      | base64_encode)
+      payload_base64=$(
+        echo "${payload}"\
+          | json\
+          | base64_encode )
+
+  header_payload=$(
+    echo "${header_base64}.${payload_base64}" )
+
+  signature=$(
+    echo -n "${header_payload}"\
+      | openssl dgst -binary -sha256 -sign <( echo -n "$5" )\
+      | base64_encode )
+
+  curl -d\
+    "grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${header_payload}.${signature}"\
+    "$3" 2>/dev/null | jq --raw-output '.access_token'
+}
+
+file_is_aged(){ # ./$0 file age
+  [ ! -f "$1" ] && _die "file_is_aged(): FILE '$1' not found"
+  [ -z "$2" ] && _die "file_is_aged(): MAX_AGE is not provided"
+  local file_date=$( date --utc --reference="$1" +%s )
+  local now_date=$( date --utc +%s )
+  local file_age=$(( now_date - file_date ))
+  [ $file_age -ge $2 ]
+}
+
+hash jq curl
+
+key_file="$1"; scope="$2"; token_file="$3"; max_age=${4:-3600}
+
+[ -z "$scope" ]\
+  || [ ! -f "$key_file" ]\
+  && _die "Usage: $0 KEY_FILE SCOPE [ TOKEN_FILE [TOKEN_MAX_AGE]]"
+
+_gen(){
+  token_gen\
+    "$( parse_var "$key_file" client_email )"\
+    "$scope"\
+    "$( parse_var "$key_file" token_uri )"\
+    "${max_age:-3600}"\
+    "$( parse_var "$key_file" private_key )"
+}
+
+if [ -f "$token_file" ]; then
+  if file_is_aged "$token_file" $max_age; then
+    _gen | tee "$token_file"
+  else cat "$token_file"; fi
+elif [ ! -z "$3" ]; then
+  touch "$token_file" && { _gen | tee "$token_file"; }
+else _gen; fi
+
+exit 0
