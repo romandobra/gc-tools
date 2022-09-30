@@ -27,4 +27,5 @@ Will upload the file to the Google Storage bucket.
 
 ## Combining both scripts
 One line to get the token and upload a file:
+
 `gc-upload $(gc-token KEY_FILE https://www.googleapis.com/auth/devstorage.read_write) OBJECT_LOCATION BUCKET_NAME`
