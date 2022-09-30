@@ -24,3 +24,7 @@ Will upload the file to the Google Storage bucket.
 * BUCKET_NAME - your bucket name to upload to;
 * OBJECT_NAME - (optional) remote path. Your file will be stored as `BUCKET/remote/path`. Default is the full local path without the trailing slash.
 * OBJECT_CONTENT_TYPE - (optional, default is `application/octet-stream`) the media type you want the file to be served with.
+
+## Combining both scripts
+One line to get the token and upload a file:
+`gc-upload $(gc-token KEY_FILE https://www.googleapis.com/auth/devstorage.read_write) OBJECT_LOCATION BUCKET_NAME`
