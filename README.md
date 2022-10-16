@@ -3,6 +3,8 @@ Google Cloud bash scripts without gsutil
 
 ## Usage:
 ### gc-token
+Based on https://www.willhaley.com/blog/generate-jwt-with-bash
+
 `gc-token KEY_FILE SCOPE [TOKEN_FILE [TOKEN_MAX_AGE]]`
 
 Will generate `Authorization: Bearer` token for Google Cloud from the `.json` key file.
